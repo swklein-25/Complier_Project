@@ -1,9 +1,17 @@
+#scanner/parser executable file
+parser.output
+parser.h
+parser.c
+parser
 scanner.c
 scanner
 result/
-*.result
+.history/
 
-docker/.history
+#Test file
+*.pp
+
+
 .vscode
 .bash_history
 

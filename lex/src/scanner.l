@@ -14,49 +14,122 @@ static char buffer[MAX_LINE_LENG];
 static uint32_t opt_src = 1;
 static uint32_t opt_tok = 1;
 static char *buffer_ptr = buffer;
+static char string_literal[MAX_LINE_LENG];
 
 static void concatenateString(const char *yytext_ptr);
 
 %}
 
+
+%x CCOMMENT
+
 %%
+	/*Delimiter*/
 "(" 	 	{ TOKEN_CHAR('('); }
 ":" 		{ TOKEN_CHAR(':'); }
 ";"  		{ TOKEN_CHAR(';'); }
 ")"  		{ TOKEN_CHAR('('); }
 "["  		{ TOKEN_CHAR('['); }
 "]"  		{ TOKEN_CHAR(']'); }
-[[]] 		{ TOKEN1(yytext);  }
 ","  		{ TOKEN_CHAR(','); }
+	/*Operation*/
 "+"  		{ TOKEN_CHAR('+');}
 "-"  		{ TOKEN_CHAR('-');}
 "*"  		{ TOKEN_CHAR('*');}
-"/"|mod  	{ TOKEN1(yytext);}
+"/"	  	{ TOKEN_CHAR('/');}
+"mod"           { TOKEN(mod);}
 ":=" 		{ TOKEN(:=);}
-"<"|">"|"<="|"<>"|">="|"=" 						{TOKEN1(yytext);}
-and|or|not  									{TOKEN1(yytext);}
-var|def 										{TOKEN(kwdeclaration);}
-array|of|boolean|integer|real|string 			{TOKEN(kwType);}
-true|false  									{TOKEN(kwValue);}
-while|do|if|then|else|for|to 					{TOKEN(kwFlow-of-control);}
-begin|end   									{TOKEN(kwBlock);}
-print|read|return 								{TOKEN(kwStatement);}
-[\r\t\v\f]+       {}
-[ ]+			  {}
-([A-Za-z][A-Za-z0-9]*)   								{TOKEN_STRING(id,yytext);}
-[0]+(0|1|2|3|4|5|6|7)+   								{TOKEN_STRING(octal Integer,yytext);}
-[0-9]+					 								{TOKEN_STRING(decimal Integer,yytext);}
-[0-9]+(".")(0|[1-9]+)    								{TOKEN_STRING(floating-point,yytext);}
-[1-9]+|([1-9]+(".")(0|[1-9]+))("E")("+"|"-")?[0-9]+ 	{TOKEN_STRING(scientific notations,yytext);}
-\"([^ \t\v\f\r\n\"]*|(\"\")*)*\" 						{TOKEN_STRING(string constant,yytext);}
-(\/\/[^\t\v\f\r\n]+)									{LIST;}
-\/\*[.]+[\n]+"*""/"									{LIST;}
+"<"		{ TOKEN_CHAR('<');}
+">"		{ TOKEN_CHAR('>');}
+"<="		{ TOKEN(<=);}
+"<>"		{ TOKEN(<>);}
+">="		{ TOKEN(>=);}
+"=" 		{ TOKEN_CHAR('=');}
+"and"		{ TOKEN(and);}
+"or"		{ TOKEN(or);}
+"not"  		{ TOKEN(not);}
+	/*Reserved word*/
+"var"           { TOKEN(KWvar);}
+"def" 		{ TOKEN(KWdef);}
+"array"		{ TOKEN(KWarray);}
+"of"		{ TOKEN(KWof);}
+"boolean"	{ TOKEN(KWboolean);}
+"integer"	{ TOKEN(KWinteger);}
+"real"		{ TOKEN(KWreal);}
+"string" 	{ TOKEN(KWstring);}
+"true"		{ TOKEN(KWtrue);}
+"false"  	{ TOKEN(KWfalse);}
+"while"		{ TOKEN(KWwhile);}
+"do"		{ TOKEN(KWdo);}
+"if"		{ TOKEN(KWif);}
+"then"		{ TOKEN(KWthen);}
+"else"		{ TOKEN(KWelse);}
+"for"		{ TOKEN(KWfor);}
+"to" 		{ TOKEN(KWto);}
+"begin"		{ TOKEN(KWbegin);}
+"end"   	{ TOKEN(KWend);}
+"print"		{ TOKEN(KWprint);}
+"read"		{ TOKEN(KWread);}
+"return" 	{ TOKEN(KWreturn);}
+	/*Whitespace*/
+[\r\t\v\f]+     {LIST;}
+[ ]+	        {LIST;}
+	/*identifier*/
+([A-Za-z][A-Za-z0-9]*)    {TOKEN_STRING(id,yytext);}
+	/*Integer(Decimal/Octal)*/
+[0]+(0|1|2|3|4|5|6|7)+    {TOKEN_STRING(Octal,yytext);}
+[0-9]+			  {TOKEN_STRING(Decimal,yytext);}
+	/*Floating-point*/
+[0-9]+(".")(0|[1-9]+)     {TOKEN_STRING(Float,yytext);}
+	/*Scientific notation*/
+[1-9]+|([1-9]+(".")(0|[1-9]+))("E")("+"|"-")?[0-9]+ 	{TOKEN_STRING(SciNotation,yytext);}
+	/*Stirng*/
+\"([^"\n]|(\"\"))*\" 	            {
+	char *yyt_ptr = yytext + 1;  // +1 for skipping the first double quote "
+	char *str_ptr = string_literal;
+	while (*yyt_ptr) {
+		if (*yyt_ptr == '"') {
+            	// Handle the situation of two double quotes "" in string literal
+           	if (*(yyt_ptr + 1) == '"') {
+               		*str_ptr = *yyt_ptr;
+                	++str_ptr;
+               		yyt_ptr += 2; // move to the next character of ""
+            	}else {
+               		++yyt_ptr;
+            	}
+        	}else {  // normal character
+           		*str_ptr = *yyt_ptr;
+            		++str_ptr;
+            		++yyt_ptr;
+       		}
+    	}
+   	 *str_ptr = '\0';
+	TOKEN_STRING(string,yytext);}
+	
+	/*Comment*/
+(\/\/[^\t\v\f\r\n]+)			{LIST;}
+\/\*[.]+[\n]+"*""/"			{LIST;}
+	
+	/* C Style Comment */
+"/*"           { LIST; BEGIN(CCOMMENT); }
+<CCOMMENT>"*/" { LIST; BEGIN(INITIAL); }
+<CCOMMENT>.    { LIST; }
 
-
-
- 
-
-\n {
+	/*Pseudocomment*/
+"//&"[ST][+-].* {
+    LIST;
+    char option = yytext[3];
+    switch (option) {
+    case 'S':
+        opt_src = (yytext[4] == '+') ? 1 : 0;
+        break;
+    case 'T':
+        opt_tok = (yytext[4] == '+') ? 1 : 0;
+        break;
+    }
+}
+	/*Newline*/
+<INITIAL,CCOMMENT>\n {
     if (opt_src) {
         printf("%d: %s\n", line_num, buffer);
     }
