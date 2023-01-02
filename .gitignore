@@ -2,12 +2,11 @@
 parser.output
 parser.h
 parser.c
-parser
 scanner.c
 scanner
 result/
 .history/
-
+parser
 #Test file
 *.pp
 
